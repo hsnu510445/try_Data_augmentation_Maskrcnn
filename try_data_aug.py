@@ -49,7 +49,7 @@ mask
 # %%
 # 因為SSD的數據不能直接用Pytorch的數據增強，所以先存一波已經變換過的圖
 # 先改寫一些transform 函式 -> 改寫失敗，因為型別class錯誤會導致錯誤
-# 好像PIL是四維的，最後一維都是225，換成mask
+# 好像PIL是四維的(RGBA)，最後一維都是225，換成mask
 # test_img=Image.open(f'{ROOT_DIR}/PNGImages/02.png')
 # test_mask = Image.open(f'{ROOT_DIR}/LarvaMasks/label_02_mask.png')
 # np.array(test_img).shape->(2076, 3088, 4)
@@ -88,14 +88,32 @@ def decode(img):
     mask_new = Image.fromarray(mask) 
     return img_new,mask_new
 
+def vis(mask):
+    mask.convert('P')
+    mask.putpalette([
+        0, 0, 0, # black background
+        128, 0, 0, # index 1 is red
+        0, 128, 0, # index 2 is green
+        128, 128, 0, # index 3 is yellow
+    ])
+    return mask
+
 # %%
 # 來輸出一波圖片
+# 是否輸出可式化label
+visualize=True
 origin_img_list = list(sorted(os.listdir(os.path.join(ROOT_DIR, 'PNGImages'))))
 origin_mask_list = list(sorted(os.listdir(os.path.join(ROOT_DIR, 'LarvaMasks'))))
 for origin_img_num in range(origin_img_list.__len__()):
-    for i in range(500):
-        origin_IMG=Image.open(f'{ROOT_DIR}/PNGImages/{origin_img_list[origin_img_num]}')
-        origin_mask=Image.open(f'{ROOT_DIR}/LarvaMasks/{origin_mask_list[origin_img_num]}')
+    count=0
+    origin_IMG=Image.open(f'{ROOT_DIR}/PNGImages/{origin_img_list[origin_img_num]}')
+    origin_mask=Image.open(f'{ROOT_DIR}/LarvaMasks/{origin_mask_list[origin_img_num]}')
+
+    while True:
+        if count>20:
+            # 一張圖片變500張就好
+            break
+        
         subIMG=encode(origin_IMG,origin_mask)
         # 
         train_tfm = transforms.Compose([
@@ -104,7 +122,8 @@ for origin_img_num in range(origin_img_list.__len__()):
                     transforms.RandomAffine(degrees=0, shear= 25,fill=(0, 0, 0, 255)),
                     transforms.RandomHorizontalFlip(p=1.0),
                     transforms.RandomVerticalFlip(p=1.0),
-                    transforms.GaussianBlur(kernel_size=7, sigma=(0.1, 5.0)),
+                    # transforms.GaussianBlur(kernel_size=7, sigma=(0.1, 5.0)), #加雜訊會有問題
+                    transforms.RandomRotation(degrees=30,fill=(0, 0, 0, 255)),
                 ],p=0.8),
             
             transforms.RandomCrop((512, 512)),
@@ -121,9 +140,16 @@ for origin_img_num in range(origin_img_list.__len__()):
             os.makedirs(f"{DATA_AUG_DIR}/LarvaMasks")
         if not os.path.isdir(f"{DATA_AUG_DIR}/PNGImages"):
             os.makedirs(f"{DATA_AUG_DIR}/PNGImages")
-        crop_img.save(f"{DATA_AUG_DIR}/PNGImages/{origin_img_list[origin_img_num][:-4]}_{i}.png","png")
-        crop_mask.save(f"{DATA_AUG_DIR}/LarvaMasks/{origin_mask_list[origin_img_num][:-4]}_{i}.png","png")
         
+        crop_img.save(f"{DATA_AUG_DIR}/PNGImages/{origin_img_list[origin_img_num][:-4]}_{str(count).zfill(4)}.png","png")
+        crop_mask.save(f"{DATA_AUG_DIR}/LarvaMasks/{origin_mask_list[origin_img_num][:-4]}_{str(count).zfill(4)}.png","png")
+        if visualize:
+            if not os.path.isdir(f"{DATA_AUG_DIR}/LarvaMasks_vis"):
+                os.makedirs(f"{DATA_AUG_DIR}/LarvaMasks_vis")
+            crop_mask_vis=vis(crop_mask)
+            crop_mask_vis.save(f"{DATA_AUG_DIR}/LarvaMasks_vis/{origin_img_list[origin_img_num][:-4]}_{str(count).zfill(4)}_vis.png","png")
+
+        count=count+1
 # http://noahsnail.com/2020/06/12/2020-06-12-%E7%8E%A9%E8%BD%ACpytorch%E4%B8%AD%E7%9A%84torchvision.transforms/
 # %%
 # 用來顯示所有數字
