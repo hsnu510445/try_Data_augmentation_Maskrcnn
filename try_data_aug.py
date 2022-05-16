@@ -104,14 +104,15 @@ def vis(mask):
 visualize=True
 origin_img_list = list(sorted(os.listdir(os.path.join(ROOT_DIR, 'PNGImages'))))
 origin_mask_list = list(sorted(os.listdir(os.path.join(ROOT_DIR, 'LarvaMasks'))))
+shape_size=512
 for origin_img_num in range(origin_img_list.__len__()):
     count=0
     origin_IMG=Image.open(f'{ROOT_DIR}/PNGImages/{origin_img_list[origin_img_num]}')
     origin_mask=Image.open(f'{ROOT_DIR}/LarvaMasks/{origin_mask_list[origin_img_num]}')
 
     while True:
-        if count>20:
-            # 一張圖片變500張就好
+        if count>1000:
+            # 一張圖片變50張就好
             break
         
         subIMG=encode(origin_IMG,origin_mask)
@@ -126,13 +127,39 @@ for origin_img_num in range(origin_img_list.__len__()):
                     transforms.RandomRotation(degrees=30,fill=(0, 0, 0, 255)),
                 ],p=0.8),
             
-            transforms.RandomCrop((512, 512)),
+            transforms.RandomCrop((shape_size, shape_size)),
         ])
         subIMG=train_tfm(subIMG)
         crop_img,crop_mask=decode(subIMG)
         # crop_mask[crop_mask >10] = 0
         if np.sum(crop_mask)==0:
+            print("skip none")
             continue
+        
+        # 檢查標籤    
+        crop_mask_arr=np.array(crop_mask) 
+        xmax=0
+        xmin=shape_size
+        ymax=0
+        ymin=shape_size
+        for x in range(shape_size):
+            for y in range(shape_size):
+                if crop_mask_arr[x][y]!=0:
+                    if x>xmax:
+                        xmax=x
+                    if x<xmin:
+                        xmin=x
+                    if y>ymax:
+                        ymax=y
+                    if y<ymin:
+                        ymin=y
+        if xmin==xmax:
+            print("skip same x")
+            continue
+        if ymin==ymax:
+            print("skip same y")
+            continue
+        
         # 存圖片
         if not os.path.isdir(f"{DATA_AUG_DIR}"):
             os.makedirs(f"{DATA_AUG_DIR}")
@@ -224,7 +251,6 @@ class LarvaDataset(torch.utils.data.Dataset):
 
         if self.transforms is not None:
             img, target = self.transforms(img, target)
-            #TODO 靠北ㄛ
 
         return img,mask, target
 
